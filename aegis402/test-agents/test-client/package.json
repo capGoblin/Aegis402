@@ -1,0 +1,20 @@
+{
+    "name": "aegis402-test-client",
+    "version": "1.0.0",
+    "description": "Test client for Aegis402 flow testing",
+    "main": "client.ts",
+    "scripts": {
+        "dev": "ts-node -r dotenv/config client.ts",
+        "start": "ts-node -r dotenv/config client.ts"
+    },
+    "dependencies": {
+        "a2a-x402": "file:../../a2a-x402-typescript/x402_a2a",
+        "dotenv": "^17.2.3",
+        "ethers": "^6.13.0"
+    },
+    "devDependencies": {
+        "@types/node": "^24.6.2",
+        "ts-node": "^10.9.0",
+        "typescript": "^5.9.3"
+    }
+}

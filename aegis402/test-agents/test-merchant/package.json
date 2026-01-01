@@ -1,0 +1,20 @@
+{
+    "name": "aegis402-test-merchant",
+    "version": "1.0.0",
+    "description": "Test merchant for Aegis402 flow testing",
+    "main": "merchant.ts",
+    "scripts": {
+        "dev": "ts-node -r dotenv/config merchant.ts",
+        "start": "ts-node -r dotenv/config merchant.ts"
+    },
+    "dependencies": {
+        "a2a-x402": "file:../../a2a-x402-typescript/x402_a2a",
+        "dotenv": "^17.2.3",
+        "ethers": "^6.13.0"
+    },
+    "devDependencies": {
+        "@types/node": "^24.6.2",
+        "ts-node": "^10.9.0",
+        "typescript": "^5.9.3"
+    }
+}
