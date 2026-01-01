@@ -28,6 +28,7 @@ contract CreditManager is Ownable {
         uint256 outstandingExposure;
         uint256 agentId;
         string x402Endpoint;
+        string[] skills;
         bool active;
     }
 
@@ -58,7 +59,8 @@ contract CreditManager is Ownable {
         address merchant,
         uint256 stakeAmount,
         uint256 agentId,
-        string calldata x402Endpoint
+        string calldata x402Endpoint,
+        string[] calldata skills
     ) external onlyAegis402 {
         require(stakeAmount > 0, "Zero stake");
         require(!merchants[merchant].active, "Already subscribed");
@@ -66,16 +68,24 @@ contract CreditManager is Ownable {
         // Transfer stake from agent to contract (agent received via x402)
         USDC.transferFrom(msg.sender, address(this), stakeAmount);
 
-        merchants[merchant] = Merchant({
-            stake: stakeAmount,
-            creditLimit: 0,
-            outstandingExposure: 0,
-            agentId: agentId,
-            x402Endpoint: x402Endpoint,
-            active: true
-        });
+        merchants[merchant].stake = stakeAmount;
+        merchants[merchant].creditLimit = 0;
+        merchants[merchant].outstandingExposure = 0;
+        merchants[merchant].agentId = agentId;
+        merchants[merchant].x402Endpoint = x402Endpoint;
+        merchants[merchant].active = true;
+        
+        // Copy skills array
+        for (uint i = 0; i < skills.length; i++) {
+            merchants[merchant].skills.push(skills[i]);
+        }
 
         emit Subscribed(merchant, stakeAmount, agentId);
+    }
+
+    /// @notice Get merchant's skills (cannot be returned via auto-generated getter)
+    function getMerchantSkills(address merchant) external view returns (string[] memory) {
+        return merchants[merchant].skills;
     }
 
     /**

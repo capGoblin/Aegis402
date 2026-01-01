@@ -128,7 +128,45 @@ export class ChainWatcher {
   }
 
   // Get all subscribed merchants
-  getSubscribedMerchants(): string[] {
+  getMerchants(): string[] {
     return Array.from(this.subscribedMerchants);
+  }
+
+  // Find a specific past transfer (for recovery)
+  async findTransfer(
+    to: string,
+    amount: bigint,
+    endBlock: number,
+    lookbackBlocks: number = 100
+  ): Promise<TransferEvent | null> {
+    const fromBlock = Math.max(0, endBlock - lookbackBlocks);
+    const filter = this.usdcContract.filters.Transfer(null, to);
+
+    try {
+      const logs = await this.usdcContract.queryFilter(
+        filter,
+        fromBlock,
+        endBlock
+      );
+
+      // Find match with correct amount (search backwards from end)
+      for (let i = logs.length - 1; i >= 0; i--) {
+        const log = logs[i] as any;
+        if (log.args[2] === amount) {
+          const block = await log.getBlock();
+          return {
+            txHash: log.transactionHash,
+            from: log.args[0],
+            to: log.args[1],
+            amount: log.args[2],
+            blockNumber: log.blockNumber,
+            timestamp: block?.timestamp || Math.floor(Date.now() / 1000),
+          };
+        }
+      }
+    } catch (error) {
+      console.error("Error searching past transfers:", error);
+    }
+    return null;
   }
 }

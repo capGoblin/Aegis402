@@ -71,6 +71,9 @@ function prompt(): void {
         case "slash":
           await slashMerchant(args[0]);
           break;
+        case "settle":
+          await settleTx(args[0]);
+          break;
         case "wallet":
           console.log(`Wallet: ${wallet.address}`);
           break;
@@ -99,6 +102,7 @@ Commands:
   request [url]           - Request service from merchant
   pay                     - Confirm pending payment
   cancel                  - Cancel pending payment
+  settle <txHash>         - Settle transaction (clear exposure)
   slash <txHash>          - Slash merchant for non-delivery
   wallet                  - Show wallet address
   help                    - Show this help
@@ -238,6 +242,24 @@ async function confirmPayment(): Promise<void> {
   console.log("Response:", JSON.stringify(result, null, 2));
 
   pendingPayment = null;
+}
+
+async function settleTx(txHash?: string): Promise<void> {
+  if (!txHash) {
+    console.log("Usage: settle <txHash>");
+    return;
+  }
+
+  console.log(`✅ Settling tx: ${txHash}`);
+
+  const response = await fetch(`${AEGIS402_URL}/settle`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ txHash }),
+  });
+
+  const result = (await response.json()) as any;
+  console.log("Result:", JSON.stringify(result, null, 2));
 }
 
 async function slashMerchant(txHash?: string): Promise<void> {

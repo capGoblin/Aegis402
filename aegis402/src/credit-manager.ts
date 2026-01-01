@@ -10,19 +10,20 @@ import { ethers, Contract, Signer, Provider, TransactionReceipt } from "ethers";
 // CreditManager ABI (only the functions we need)
 const CREDIT_MANAGER_ABI = [
   // Read functions
-  "function merchants(address) view returns (uint256 stake, uint256 creditLimit, uint256 outstandingExposure, bytes32 agentId, string x402Endpoint, bool active)",
+  "function merchants(address) view returns (uint256 stake, uint256 creditLimit, uint256 outstandingExposure, uint256 agentId, string x402Endpoint, bool active)",
   "function availableCapacity(address merchant) view returns (uint256)",
+  "function getMerchantSkills(address merchant) view returns (string[])",
 
-  // Write functions (onlyEigen)
+  // Write functions (onlyAegis402)
   "function setCreditLimit(address merchant, uint256 creditLimit) external",
-  "function subscribeFor(address merchant, uint256 stakeAmount, uint256 agentId, string x402Endpoint) external",
+  "function subscribeFor(address merchant, uint256 stakeAmount, uint256 agentId, string x402Endpoint, string[] skills) external",
   "function increaseStakeFor(address merchant, uint256 amount) external",
   "function recordPayment(address merchant, uint256 amount) external",
   "function clearExposure(address merchant, uint256 amount) external",
   "function slash(address merchant, address client, uint256 amount) external",
 
   // Events
-  "event Subscribed(address indexed merchant, uint256 stake, bytes32 agentId)",
+  "event Subscribed(address indexed merchant, uint256 stake, uint256 agentId)",
   "event CreditUpdated(address indexed merchant, uint256 creditLimit)",
   "event ExposureIncreased(address indexed merchant, uint256 amount)",
   "event ExposureCleared(address indexed merchant, uint256 amount)",
@@ -81,7 +82,8 @@ export class CreditManagerClient {
     merchantAddress: string,
     stakeAmount: bigint,
     agentId: number | string,
-    x402Endpoint: string
+    x402Endpoint: string,
+    skills: string[]
   ): Promise<TransactionReceipt> {
     // Convert agentId to uint256
     const agentIdNum = BigInt(agentId);
@@ -89,9 +91,15 @@ export class CreditManagerClient {
       merchantAddress,
       stakeAmount,
       agentIdNum,
-      x402Endpoint
+      x402Endpoint,
+      skills
     );
     return await tx.wait();
+  }
+
+  // Get merchant's skills
+  async getMerchantSkills(merchantAddress: string): Promise<string[]> {
+    return await this.contract.getMerchantSkills(merchantAddress);
   }
 
   // Increase stake for a merchant (agent received via x402)
@@ -163,5 +171,41 @@ export class CreditManagerClient {
   // Stop all listeners (no-op now)
   removeAllListeners(): void {
     // No-op
+  }
+
+  // Get filter for Subscribed events (for querying past events)
+  getSubscribedFilter(): any {
+    return this.contract.filters.Subscribed();
+  }
+
+  // Query past Subscribed events (limited range for public RPCs)
+  async querySubscribedEvents(filter: any, fromBlock?: number): Promise<any[]> {
+    // Public RPCs limit to 100k blocks, use 90k to be safe
+    const provider = this.contract.runner?.provider;
+    if (!fromBlock && provider) {
+      const currentBlock = await provider.getBlockNumber();
+      fromBlock = Math.max(0, currentBlock - 90000);
+    }
+    return await this.contract.queryFilter(filter, fromBlock);
+  }
+
+  // Get filter for ExposureIncreased events (pending payments)
+  getExposureIncreasedFilter(): any {
+    return this.contract.filters.ExposureIncreased();
+  }
+
+  // Get filter for ExposureCleared events (settled payments)
+  getExposureClearedFilter(): any {
+    return this.contract.filters.ExposureCleared();
+  }
+
+  // Query past events with block range limit
+  async queryEvents(filter: any, fromBlock?: number): Promise<any[]> {
+    const provider = this.contract.runner?.provider;
+    if (!fromBlock && provider) {
+      const currentBlock = await provider.getBlockNumber();
+      fromBlock = Math.max(0, currentBlock - 90000);
+    }
+    return await this.contract.queryFilter(filter, fromBlock);
   }
 }

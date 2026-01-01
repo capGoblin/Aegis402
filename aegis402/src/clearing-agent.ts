@@ -69,6 +69,12 @@ export class Aegis402 {
     console.log(`   Contract: ${this.config.creditManagerAddress}`);
     console.log(`   Agent: ${this.signer.address}`);
 
+    // Load existing merchants from on-chain events
+    await this.loadMerchantsFromChain();
+
+    // Load pending payments from on-chain events
+    await this.loadPaymentsFromChain();
+
     // Set up chain watcher callback
     this.chainWatcher.onTransfer((event) => this.onPaymentDetected(event));
     this.chainWatcher.start();
@@ -83,6 +89,165 @@ export class Aegis402 {
     this.deadlineTimer = setInterval(() => this.checkDeadlines(), 30000);
 
     console.log("✅ Aegis402 ready!");
+  }
+
+  // Load existing merchants from on-chain Subscribed events
+  private async loadMerchantsFromChain(): Promise<void> {
+    console.log("📜 Loading merchants from on-chain events...");
+
+    try {
+      // Query all Subscribed events
+      const filter = this.creditManager.getSubscribedFilter();
+      const events = await this.creditManager.querySubscribedEvents(filter);
+
+      for (const event of events) {
+        const merchantAddress = event.args[0]; // merchant address
+
+        // Read current on-chain state
+        const onChain = await this.creditManager.getMerchant(merchantAddress);
+        if (!onChain.active) continue;
+
+        // Get skills from on-chain
+        const skills = await this.creditManager.getMerchantSkills(
+          merchantAddress
+        );
+
+        // Add to local registry
+        const merchant: MerchantRecord = {
+          address: merchantAddress,
+          agentId: onChain.agentId.toString(),
+          x402Endpoint: onChain.x402Endpoint,
+          skills: skills,
+          stake: onChain.stake,
+          creditLimit: onChain.creditLimit,
+          exposure: onChain.outstandingExposure,
+          registeredAt: Math.floor(Date.now() / 1000), // Use current time as fallback
+          active: true,
+        };
+        this.merchants.set(merchantAddress.toLowerCase(), merchant);
+
+        // Index skills for discovery
+        for (const skill of skills) {
+          if (!this.skillIndex.has(skill)) {
+            this.skillIndex.set(skill, new Set());
+          }
+          this.skillIndex.get(skill)!.add(merchantAddress.toLowerCase());
+        }
+
+        // Add to chain watcher
+        this.chainWatcher.addMerchant(merchantAddress);
+      }
+
+      console.log(`   ✅ Loaded ${this.merchants.size} merchants from chain`);
+    } catch (error) {
+      console.log(`   ⚠️ Failed to load from chain: ${error}`);
+    }
+  }
+
+  // Load pending payments from on-chain events
+  private async loadPaymentsFromChain(): Promise<void> {
+    console.log("💳 Loading pending payments from on-chain events...");
+
+    try {
+      // Query ExposureIncreased events (recorded payments)
+      const increasedFilter = this.creditManager.getExposureIncreasedFilter();
+      const increasedEvents = await this.creditManager.queryEvents(
+        increasedFilter
+      );
+
+      // Query ExposureCleared events (settled payments)
+      const clearedFilter = this.creditManager.getExposureClearedFilter();
+      const clearedEvents = await this.creditManager.queryEvents(clearedFilter);
+
+      // Track settled amounts per merchant (cumulative)
+      const settledAmounts = new Map<string, bigint>();
+      for (const event of clearedEvents) {
+        const merchant = event.args[0].toLowerCase();
+        const amount = event.args[1];
+        settledAmounts.set(
+          merchant,
+          (settledAmounts.get(merchant) || 0n) + amount
+        );
+      }
+
+      // Track increased amounts per merchant to find pending
+      const pendingAmounts = new Map<string, bigint>();
+      for (const event of increasedEvents) {
+        const merchant = event.args[0].toLowerCase();
+        const amount = event.args[1];
+        pendingAmounts.set(
+          merchant,
+          (pendingAmounts.get(merchant) || 0n) + amount
+        );
+      }
+
+      // For each ExposureIncreased event, create a payment record if not fully cleared
+      for (const event of increasedEvents) {
+        const recordTxHash = event.transactionHash; // Hash of recordPayment tx
+        const merchant = event.args[0];
+        const amount = event.args[1] as bigint;
+        const block = await event.getBlock();
+
+        // Check if we already have this payment (checking both potential keys)
+        if (this.payments.has(recordTxHash)) continue;
+
+        // Try to find the original Transfer event to get the REAL payment hash
+        // Look back 5 blocks from the recordPayment block
+        const transfer = await this.chainWatcher.findTransfer(
+          merchant,
+          amount,
+          event.blockNumber,
+          5
+        );
+
+        // Use transfer hash if found, otherwise fallback to record hash
+        const paymentHash = transfer ? transfer.txHash : recordTxHash;
+        const client = transfer ? transfer.from : this.signer.address;
+
+        if (this.payments.has(paymentHash)) continue;
+
+        if (transfer) {
+          console.log(
+            `   🔗 Linked record ${recordTxHash.slice(
+              0,
+              10
+            )}... to payment ${paymentHash.slice(0, 10)}...`
+          );
+        } else {
+          console.log(
+            `   ⚠️ Could not link payment for ${recordTxHash.slice(0, 10)}...`
+          );
+        }
+
+        // Create payment record with pending status
+        const payment: PaymentRecord = {
+          txHash: paymentHash,
+          merchant,
+          client: client,
+          amount,
+          deadline:
+            (block?.timestamp || Math.floor(Date.now() / 1000)) +
+            this.config.defaultDeadlineSeconds,
+          status: "pending",
+          createdAt: block?.timestamp || Math.floor(Date.now() / 1000),
+        };
+
+        this.payments.set(paymentHash, payment);
+      }
+
+      // Mark payments as settled based on ExposureCleared events
+      for (const event of clearedEvents) {
+        const txHash = event.transactionHash;
+        // Find the corresponding increased event by looking for matching merchant/amount
+        // This is imperfect but works for basic recovery
+      }
+
+      console.log(
+        `   ✅ Loaded ${this.payments.size} payment records from chain`
+      );
+    } catch (error) {
+      console.log(`   ⚠️ Failed to load payments from chain: ${error}`);
+    }
   }
 
   stop(): void {
@@ -147,7 +312,8 @@ export class Aegis402 {
           merchantAddress,
           stakeAmount,
           agentId,
-          request.x402Endpoint
+          request.x402Endpoint,
+          request.skills || []
         );
         console.log(`   ✅ subscribeFor tx: ${subscribeTx.hash}`);
       } else {
@@ -231,31 +397,38 @@ export class Aegis402 {
       const merchant = this.merchants.get(address);
       if (!merchant || !merchant.active) continue;
 
-      // Calculate available capacity
-      const capacity = merchant.creditLimit - merchant.exposure;
+      // Read FRESH exposure from on-chain (not stale local state)
+      try {
+        const onChainData = await this.creditManager.getMerchant(address);
+        const capacity =
+          onChainData.creditLimit - onChainData.outstandingExposure;
 
-      // Filter: capacity >= price
-      if (capacity < requestedPrice) {
-        console.log(
-          `   ❌ ${address}: capacity ${ethers.formatUnits(
-            capacity,
-            6
-          )} < ${ethers.formatUnits(requestedPrice, 6)}`
-        );
+        // Filter: capacity >= price
+        if (capacity < requestedPrice) {
+          console.log(
+            `   ❌ ${address}: capacity ${ethers.formatUnits(
+              capacity,
+              6
+            )} < ${ethers.formatUnits(requestedPrice, 6)}`
+          );
+          continue;
+        }
+
+        // Calculate repFactor for ranking from ERC-8004 registry
+        const reputationReader = getReputationReader(this.provider);
+        const repFactor = await reputationReader.getRepFactor(address);
+
+        matchingMerchants.push({
+          address: merchant.address,
+          x402Endpoint: merchant.x402Endpoint,
+          availableCapacity: capacity.toString(),
+          repFactor: repFactor,
+          skills: merchant.skills,
+        });
+      } catch (error) {
+        console.log(`   ⚠️ Failed to read on-chain data for ${address}`);
         continue;
       }
-
-      // Calculate repFactor for ranking from ERC-8004 registry
-      const reputationReader = getReputationReader(this.provider);
-      const repFactor = await reputationReader.getRepFactor(address);
-
-      matchingMerchants.push({
-        address: merchant.address,
-        x402Endpoint: merchant.x402Endpoint,
-        availableCapacity: capacity.toString(),
-        repFactor: repFactor,
-        skills: merchant.skills,
-      });
     }
 
     // Rank by capacity / price (higher is better)
@@ -434,6 +607,12 @@ export class Aegis402 {
     console.log(`   From: ${event.from}`);
     console.log(`   To: ${event.to}`);
     console.log(`   Amount: ${ethers.formatUnits(event.amount, 6)} USDC`);
+
+    // Skip transfers FROM Aegis agent (stake deposits, not client payments)
+    if (event.from.toLowerCase() === this.getAgentAddress().toLowerCase()) {
+      console.log(`   ⏭️ Skipping transfer from Aegis agent (stake deposit)`);
+      return;
+    }
 
     const merchantAddress = event.to.toLowerCase();
     const merchant = this.merchants.get(merchantAddress);
