@@ -347,7 +347,18 @@ export class Aegis402 {
       // 1. Read ERC-8004 reputation from on-chain registry
       const reputationReader = getReputationReader(this.provider);
       console.log(`   Fetching reputation for ${merchantAddress}...`);
-      const repFactor = await reputationReader.getRepFactor(merchantAddress);
+
+      // Use agentId if provided, otherwise fall back to address lookup
+      let repFactor: number;
+      if (request.agentId && request.agentId !== "0") {
+        console.log(`   Using agentId ${request.agentId} for ERC-8004 lookup`);
+        repFactor = await reputationReader.getRepFactorByAgentId(
+          request.agentId
+        );
+      } else {
+        console.log(`   Using address ${merchantAddress} for ERC-8004 lookup`);
+        repFactor = await reputationReader.getRepFactor(merchantAddress);
+      }
 
       const creditLimit = calculateCreditLimit(stakeAmount, repFactor);
 

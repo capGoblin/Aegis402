@@ -46,7 +46,7 @@ async function findMerchants(
   );
 
   let skill = "";
-  let price = "1000000";
+  let price = "10000";
 
   // ROOT CAUSE FIX: ADK passes params as a JSON string, not an object!
   let parsed: any = params;

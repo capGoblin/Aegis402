@@ -5,7 +5,7 @@ import { MerchantConfig } from "./types";
 import "dotenv/config";
 
 const PORT = parseInt(process.env.PORT || "10002");
-const SERVICE_PRICE = process.env.SERVICE_PRICE || "50000";
+const SERVICE_PRICE = process.env.SERVICE_PRICE || "10000";
 const AEGIS402_URL = process.env.AEGIS402_URL || "http://localhost:10001";
 const FACILITATOR_URL =
   process.env.FACILITATOR_URL || "https://x402.org/facilitator";
@@ -15,7 +15,7 @@ const SKILLS = (
   process.env.MERCHANT_SKILLS || "data-analysis,test-service"
 ).split(",");
 const AGENT_ID = process.env.AGENT_ID || "0";
-const STAKE_AMOUNT = process.env.STAKE_AMOUNT || "100000";
+const STAKE_AMOUNT = process.env.STAKE_AMOUNT || "10000";
 const USDC_ADDRESS =
   process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 

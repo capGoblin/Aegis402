@@ -33,8 +33,8 @@ const CREDIT_MANAGER_ADDRESS =
 const USDC_ADDRESS =
   process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const RPC_URL = process.env.RPC_URL || "https://sepolia.base.org";
-const MIN_STAKE_AMOUNT = BigInt(process.env.MIN_STAKE_AMOUNT || "100000"); // 0.1 USDC
-const SLASH_BOND_AMOUNT = BigInt(process.env.SLASH_BOND_AMOUNT || "100000"); // 0.1 USDC
+const MIN_STAKE_AMOUNT = BigInt(process.env.MIN_STAKE_AMOUNT || "10000"); // 0.01 USDC
+const SLASH_BOND_AMOUNT = BigInt(process.env.SLASH_BOND_AMOUNT || "10000"); // 0.01 USDC
 const DEFAULT_DEADLINE_SECONDS = parseInt(
   process.env.DEFAULT_DEADLINE_SECONDS || "3600"
 );

@@ -1,0 +1,90 @@
+{
+    "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+    "protocolVersion": "1.0",
+    "agentAddress": "0xe28B167afb343e9a49B9Ea2391D0601E36F13A1d",
+    "name": "Test Service Agent",
+    "description": "A test merchant agent that provides data analysis and test services over x402 for validating agent-to-agent commerce and async payment workflows.",
+    "version": "0.1.0",
+    "provider": {
+        "organization": "Aegis402",
+        "url": "http://localhost:10002"
+    },
+    "endpoints": [
+        {
+            "name": "Service",
+            "endpoint": "http://localhost:10002/service",
+            "protocolBinding": "HTTP+JSON",
+            "version": "1.0.0"
+        },
+        {
+            "name": "Health",
+            "endpoint": "http://localhost:10002/health",
+            "protocolBinding": "HTTP+JSON",
+            "version": "1.0.0"
+        },
+        {
+            "name": "Status",
+            "endpoint": "http://localhost:10002/status",
+            "protocolBinding": "HTTP+JSON",
+            "version": "1.0.0"
+        }
+    ],
+    "capabilities": {
+        "streaming": false,
+        "pushNotifications": false,
+        "stateTransitionHistory": true,
+        "supportedTrust": [
+            "reputation",
+            "stake-backed"
+        ]
+    },
+    "skills": [
+        {
+            "id": "data-analysis",
+            "name": "Data Analysis",
+            "description": "Analyze structured data and return summaries, statistics, and insights.",
+            "tags": [
+                "data",
+                "analytics",
+                "statistics"
+            ],
+            "examples": [
+                "Analyze this CSV and return summary statistics.",
+                "Find correlations in this dataset."
+            ],
+            "inputModes": [
+                "application/json"
+            ],
+            "outputModes": [
+                "application/json"
+            ]
+        },
+        {
+            "id": "test-service",
+            "name": "Test Service",
+            "description": "Simple x402-enabled endpoint for validating agent-to-agent payment workflows.",
+            "tags": [
+                "testing",
+                "x402",
+                "a2a"
+            ],
+            "examples": [
+                "Run a test request.",
+                "Verify x402 payment handling."
+            ],
+            "inputModes": [
+                "application/json"
+            ],
+            "outputModes": [
+                "application/json"
+            ]
+        }
+    ],
+    "defaultInputModes": [
+        "application/json"
+    ],
+    "defaultOutputModes": [
+        "application/json"
+    ],
+    "supportsExtendedAgentCard": false
+}

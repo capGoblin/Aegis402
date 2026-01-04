@@ -82,14 +82,22 @@ export class ERC8004ReputationReader {
    */
   async getFeedbackEntries(
     agentId: bigint,
-    fromBlock: number = 0
+    fromBlock?: number
   ): Promise<FeedbackEntry[]> {
     try {
+      // Get current block to calculate range (RPC limits to 100k blocks)
+      const currentBlock = await this.provider.getBlockNumber();
+      const startBlock = fromBlock ?? Math.max(0, currentBlock - 90000); // Last 90k blocks
+
+      console.log(
+        `   Querying feedback events from block ${startBlock} to ${currentBlock}`
+      );
+
       const filter = this.reputationRegistry.filters.NewFeedback(agentId);
       const events = await this.reputationRegistry.queryFilter(
         filter,
-        fromBlock,
-        "latest"
+        startBlock,
+        currentBlock
       );
 
       const entries: FeedbackEntry[] = events.map((event: any) => ({
@@ -166,6 +174,35 @@ export class ERC8004ReputationReader {
 
     // repFactor = score / 100
     // Clamp between 0.1 (minimum) and 3.0 (maximum)
+    const repFactor = Math.max(0.1, Math.min(3.0, score / 100));
+    console.log(`   repFactor: ${repFactor.toFixed(3)}`);
+
+    return repFactor;
+  }
+
+  /**
+   * Get repFactor directly by agentId (when agentId is known from subscription request)
+   */
+  async getRepFactorByAgentId(agentId: string | number): Promise<number> {
+    const agentIdBigInt = BigInt(agentId);
+    console.log(
+      `\n📜 Reading ERC-8004 reputation for agentId ${agentIdBigInt}`
+    );
+
+    if (agentIdBigInt === 0n) {
+      console.log(`   AgentId is 0 - using default repFactor 1.0`);
+      return 1.0;
+    }
+
+    // Calculate reputation score from feedback
+    const score = await this.calculateReputationScore(agentIdBigInt);
+
+    if (score === null) {
+      console.log(`   No feedback yet - using default repFactor 1.0`);
+      return 1.0;
+    }
+
+    // repFactor = score / 100, clamped between 0.1 and 3.0
     const repFactor = Math.max(0.1, Math.min(3.0, score / 100));
     console.log(`   repFactor: ${repFactor.toFixed(3)}`);
 
