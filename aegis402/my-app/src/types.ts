@@ -21,7 +21,8 @@ export interface PaymentRecord {
   merchant: string;
   client: string;
   amount: bigint;
-  deadline: number; // Unix timestamp
+  deadline: number; // Unix timestamp - service must be delivered by this time
+  disputeDeadline: number; // Unix timestamp - slash window ends here, then auto-clear
   status: "pending" | "settled" | "slashed" | "expired";
   createdAt: number;
 }
@@ -54,6 +55,7 @@ export interface QuoteResponse {
     availableCapacity: string;
     repFactor: number;
     skills: string[];
+    agentId: string;
   }>;
 }
 

@@ -26,6 +26,7 @@ interface AgentState {
     x402Endpoint: string;
     availableCapacity: string;
   };
+  requestedPrice?: string; // Price from search
 }
 
 const state: AgentState = {};
@@ -109,25 +110,27 @@ async function findMerchants(
     console.log(`📊 Quote response:`, JSON.stringify(result));
 
     if (!result.merchants || result.merchants.length === 0) {
-      const priceUSDC = (parseInt(price) / 1e6).toFixed(2);
+      const priceUSDC = (parseInt(price) / 1e6).toFixed(6);
       return `No merchants found for skill "${skill}" at price ${priceUSDC} USDC.
 
 ⚠️ This could mean:
 - No merchants offer this skill
 - Your price (${priceUSDC} USDC) exceeds merchant capacity
 
-Try a lower price: "find ${skill} 50000" (0.05 USDC)`;
+Try a lower price: "find ${skill} 10000" (0.01 USDC)`;
     }
 
     const m = result.merchants[0];
     state.selectedMerchant = m;
+    state.requestedPrice = price; // Store for later use
 
-    const capacityUSDC = (parseInt(m.availableCapacity) / 1e6).toFixed(2);
-    const priceUSDC = (parseInt(price) / 1e6).toFixed(2);
+    const capacityUSDC = (parseInt(m.availableCapacity) / 1e6).toFixed(6);
+    const priceUSDC = (parseInt(price) / 1e6).toFixed(6);
 
     return `✅ Found ${result.merchants.length} merchant(s) for "${skill}"!
 
 **Selected Merchant:**
+- AgentId: ${m.agentId || "N/A"}
 - Address: ${m.address}
 - Endpoint: ${m.x402Endpoint}
 - Skill: ${skill}
@@ -159,7 +162,10 @@ async function requestService(
     const response = await fetch(serviceUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ task: "Service request" }),
+      body: JSON.stringify({
+        task: "Service request",
+        price: state.requestedPrice,
+      }),
     });
 
     const result = (await response.json()) as any;
@@ -172,7 +178,7 @@ async function requestService(
           requirements: option,
         };
         const amountUSDC = (parseInt(option.maxAmountRequired) / 1e6).toFixed(
-          2
+          6
         );
         return `💰 Payment Required: ${amountUSDC} USDC
 To: ${option.payTo}
@@ -275,6 +281,112 @@ async function settleTx(
   }
 }
 
+/**
+ * Slash a merchant for non-delivery (requires bond payment)
+ */
+async function slashTx(
+  params: Record<string, any> | string,
+  context?: ToolContext
+): Promise<string> {
+  console.log(`🔪 slashTx raw params:`, JSON.stringify(params));
+
+  let txHash = "";
+  if (typeof params === "string") {
+    // Handle "slash 0xabc..." format
+    const match = params.match(/0x[a-fA-F0-9]{64}/);
+    txHash = match ? match[0] : params.trim();
+  } else if (params.txHash) {
+    txHash = params.txHash;
+  } else if (params.tx) {
+    txHash = params.tx;
+  } else if (params.query) {
+    // Handle LLM passing the full text
+    const match = String(params.query).match(/0x[a-fA-F0-9]{64}/);
+    txHash = match ? match[0] : "";
+  }
+
+  if (!txHash || !txHash.startsWith("0x")) {
+    return "Please provide a valid transaction hash to slash. Example: 'slash 0x123...'";
+  }
+
+  console.log(`🔪 Slashing tx: ${txHash}`);
+
+  try {
+    // Step 1: Get slash bond requirements
+    console.log("📤 Step 1: Getting bond requirements...");
+    const initialResponse = await fetch(`${AEGIS402_URL}/slash`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ txHash }),
+    });
+
+    if (initialResponse.status !== 402) {
+      const result = (await initialResponse.json()) as any;
+      if (result.success) {
+        return `✅ Slash completed (no bond needed): ${JSON.stringify(
+          result,
+          null,
+          2
+        )}`;
+      }
+      return `❌ Slash failed: ${
+        result.error || result.message || JSON.stringify(result)
+      }`;
+    }
+
+    // Parse 402 response to get payment requirements
+    const paymentReqs = (await initialResponse.json()) as any;
+    const bondRequirements = paymentReqs.accepts?.[0];
+
+    if (!bondRequirements) {
+      return "❌ Failed to get bond requirements from server";
+    }
+
+    const bondAmount = (
+      parseInt(bondRequirements.maxAmountRequired) / 1e6
+    ).toFixed(6);
+    console.log(`💰 Bond required: ${bondAmount} USDC`);
+
+    // Step 2: Sign the bond payment
+    console.log("🔐 Step 2: Signing bond payment...");
+    const signedPayload = await processPayment(bondRequirements, wallet as any);
+
+    // Step 3: Submit slash with signed bond
+    console.log("📤 Step 3: Submitting slash with bond...");
+    const slashResponse = await fetch(`${AEGIS402_URL}/slash`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        txHash,
+        paymentPayload: signedPayload,
+        requirements: bondRequirements,
+      }),
+    });
+
+    const result = (await slashResponse.json()) as any;
+    console.log(`📊 Slash result:`, JSON.stringify(result));
+
+    if (result.success) {
+      return `✅ Slash Successful!
+- Merchant: ${result.merchant}
+- Slashed Amount: ${(parseInt(result.slashedAmount) / 1e6).toFixed(6)} USDC
+- Refund Tx: ${result.refundTx || "N/A"}
+- Bond Paid: ${bondAmount} USDC
+
+The merchant's stake has been slashed and you've been refunded.`;
+    } else {
+      return `❌ Slash failed: ${
+        result.message || result.error || JSON.stringify(result)
+      }`;
+    }
+  } catch (error) {
+    console.error("❌ Slash error:", error);
+    return `Error slashing: ${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  }
+}
+
 // --- Agent ---
 
 export const clientAgent = new Agent({
@@ -287,11 +399,16 @@ CRITICAL: When calling findMerchants, pass the user's EXACT text as the query pa
 Example: User says "find data-analysis 50000" -> call findMerchants({query: "data-analysis 50000"})
 DO NOT extract or parse - just pass the full text.
 
+VERY IMPORTANT: When tools return results, show ALL the information EXACTLY as returned.
+- After findMerchants: ALWAYS show Capacity, Address, Endpoint, and Price. Never omit capacity.
+- Use the exact formatting from the tool response.
+
 Flow:
 1. findMerchants - pass the FULL user text as query
 2. requestService - no params needed  
 3. confirmPayment - no params needed
 4. settleTx - pass the transaction hash if user asks to settle
+5. slashTx - slash a merchant if they didn't deliver (pass tx hash)
 
 Current wallet: ${wallet.address}`,
   tools: [
@@ -300,6 +417,7 @@ Current wallet: ${wallet.address}`,
     confirmPayment,
     getWalletInfo,
     settleTx,
+    slashTx,
   ],
 });
 

@@ -36,6 +36,7 @@ export interface Aegis402Config {
   rpcUrl: string;
   privateKey: string;
   defaultDeadlineSeconds: number;
+  disputeWindowSeconds: number;
   startBlock?: number;
 }
 
@@ -290,14 +291,16 @@ export class Aegis402 {
         }
 
         // Create payment record with pending status
+        const deadline =
+          (block?.timestamp || Math.floor(Date.now() / 1000)) +
+          this.config.defaultDeadlineSeconds;
         const payment: PaymentRecord = {
           txHash: paymentHash,
           merchant,
           client: client,
           amount,
-          deadline:
-            (block?.timestamp || Math.floor(Date.now() / 1000)) +
-            this.config.defaultDeadlineSeconds,
+          deadline,
+          disputeDeadline: deadline + this.config.disputeWindowSeconds,
           status: "pending",
           createdAt: block?.timestamp || Math.floor(Date.now() / 1000),
         };
@@ -539,7 +542,14 @@ export class Aegis402 {
 
         // Calculate repFactor for ranking from ERC-8004 registry
         const reputationReader = getReputationReader(this.provider);
-        const repFactor = await reputationReader.getRepFactor(address);
+        let repFactor: number;
+        if (merchant.agentId && merchant.agentId !== "0") {
+          repFactor = await reputationReader.getRepFactorByAgentId(
+            merchant.agentId
+          );
+        } else {
+          repFactor = await reputationReader.getRepFactor(address);
+        }
 
         matchingMerchants.push({
           address: merchant.address,
@@ -547,6 +557,7 @@ export class Aegis402 {
           availableCapacity: capacity.toString(),
           repFactor: repFactor,
           skills: merchant.skills,
+          agentId: merchant.agentId,
         });
       } catch (error) {
         console.error(
@@ -678,19 +689,35 @@ export class Aegis402 {
       };
     }
 
+    // Slash only allowed in dispute window: deadline <= now < disputeDeadline
     if (now < payment.deadline) {
       const waitTime = payment.deadline - now;
       console.warn(
-        `   ⚠️ Cannot slash: Deadline not passed. Wait ${waitTime}s`
+        `   ⚠️ Cannot slash: Service deadline not passed. Wait ${waitTime}s`
       );
       return {
         success: false,
         merchant: payment.merchant,
         client: clientAddress,
         slashedAmount: "0",
-        message: `Deadline not yet passed. Wait ${waitTime} seconds`,
+        message: `Service deadline not passed. Wait ${waitTime} seconds`,
       };
     }
+
+    if (now >= payment.disputeDeadline) {
+      console.warn(
+        `   ⚠️ Cannot slash: Dispute window expired. Payment auto-cleared.`
+      );
+      return {
+        success: false,
+        merchant: payment.merchant,
+        client: clientAddress,
+        slashedAmount: "0",
+        message: `Dispute window expired. Merchant already won.`,
+      };
+    }
+
+    console.log(`   ✅ In dispute window - slash allowed`);
 
     // Verify client is the original payer
     if (payment.client.toLowerCase() !== clientAddress.toLowerCase()) {
@@ -783,20 +810,25 @@ export class Aegis402 {
 
       // Store payment record with deadline
       const deadline = event.timestamp + this.config.defaultDeadlineSeconds;
+      const disputeDeadline = deadline + this.config.disputeWindowSeconds;
       const payment: PaymentRecord = {
         txHash: event.txHash,
         merchant: event.to,
         client: event.from,
         amount: event.amount,
-        deadline: deadline,
+        deadline,
+        disputeDeadline,
         status: "pending",
         createdAt: event.timestamp,
       };
 
       this.payments.set(event.txHash, payment);
       console.log(
-        `   Payment tracked with deadline: ${new Date(
-          deadline * 1000
+        `   Deadline (service): ${new Date(deadline * 1000).toISOString()}`
+      );
+      console.log(
+        `   Dispute window ends: ${new Date(
+          disputeDeadline * 1000
         ).toISOString()}`
       );
 
@@ -813,17 +845,27 @@ export class Aegis402 {
 
   private async checkDeadlines(): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
-    // console.log(`   (Deadline Check at ${new Date().toISOString()})`);
 
     for (const [txHash, payment] of this.payments) {
       if (payment.status !== "pending") continue;
-      if (now < payment.deadline) continue;
 
-      console.log(`\n⏰ [Deadline] Expired for payment: ${txHash}`);
+      // Only auto-clear AFTER dispute window ends (not just deadline)
+      if (now < payment.disputeDeadline) {
+        // Log if in dispute window
+        if (now >= payment.deadline) {
+          // In dispute window - client can slash
+          // (don't log every check, too noisy)
+        }
+        continue;
+      }
+
+      // Dispute window expired - auto-clear
+      console.log(`\n⏰ [Dispute Window] Ended for payment: ${txHash}`);
       console.log(`   Merchant: ${payment.merchant}`);
       console.log(`   Amount: ${ethers.formatUnits(payment.amount, 6)} USDC`);
+      console.log(`   No slash requested - merchant wins.`);
 
-      // Auto-clear exposure (merchant wins if no slash is requested)
+      // Auto-clear exposure (merchant wins if no slash was requested)
       try {
         console.log("   Auto-clearing exposure...");
         const txReceipt = await this.creditManager.clearExposure(
@@ -831,14 +873,20 @@ export class Aegis402 {
           payment.amount
         );
         console.log(`   ✅ Auto-clear tx: ${txReceipt?.hash}`);
-
-        payment.status = "expired";
-        const merchant = this.merchants.get(payment.merchant.toLowerCase());
-        if (merchant) {
-          merchant.exposure -= payment.amount;
+      } catch (error: any) {
+        // If "Invalid amount" - exposure was already cleared (e.g., from previous session)
+        if (error?.reason?.includes("Invalid amount")) {
+          console.log(`   ⚠️ Exposure already cleared on-chain`);
+        } else {
+          console.error(`   ❌ Failed to auto-clear:`, error);
         }
-      } catch (error) {
-        console.error(`   ❌ Failed to auto-clear:`, error);
+      }
+
+      // Mark as expired regardless (on-chain state is source of truth)
+      payment.status = "expired";
+      const merchant = this.merchants.get(payment.merchant.toLowerCase());
+      if (merchant) {
+        merchant.exposure = 0n; // Sync with on-chain (conservative)
       }
     }
   }

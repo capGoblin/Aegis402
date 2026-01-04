@@ -5,7 +5,7 @@ import { MerchantConfig } from "./types";
 import "dotenv/config";
 
 const PORT = parseInt(process.env.PORT || "10002");
-const SERVICE_PRICE = process.env.SERVICE_PRICE || "10000";
+const SERVICE_PRICE = process.env.SERVICE_PRICE || "1000";
 const AEGIS402_URL = process.env.AEGIS402_URL || "http://localhost:10001";
 const FACILITATOR_URL =
   process.env.FACILITATOR_URL || "https://x402.org/facilitator";
@@ -58,13 +58,15 @@ function sendJson(res: ServerResponse, status: number, data: any) {
   res.end(JSON.stringify(data));
 }
 
-function createPaymentRequirements() {
+function createPaymentRequirements(price?: string) {
+  // Use dynamic price if provided, otherwise fall back to SERVICE_PRICE
+  const amount = price || SERVICE_PRICE;
   return {
     scheme: "exact" as const,
     network: "base-sepolia" as const,
     asset: USDC_ADDRESS,
     payTo: agent.getWalletAddress(),
-    maxAmountRequired: SERVICE_PRICE,
+    maxAmountRequired: amount,
     resource: "/service",
     description: "Service payment",
     mimeType: "application/json",
@@ -127,9 +129,13 @@ const server = createServer(async (req, res) => {
       const body = await parseBody<any>(req);
       const paymentHeader = req.headers["x-402-payment"];
 
+      // Use dynamic price from body, or fall back to SERVICE_PRICE
+      const requestedPrice = body.price || SERVICE_PRICE;
+      console.log(`📥 Service request - price: ${requestedPrice}`);
+
       if (!paymentHeader) {
-        console.log("📥 Service request received - returning 402");
-        const requirements = createPaymentRequirements();
+        console.log("   No payment header - returning 402");
+        const requirements = createPaymentRequirements(requestedPrice);
         res.writeHead(402, {
           "Content-Type": "application/json",
           "X-402-Version": "1",
@@ -146,7 +152,7 @@ const server = createServer(async (req, res) => {
 
       console.log("💰 Payment received, verifying...");
       const paymentPayload = JSON.parse(paymentHeader as string);
-      const requirements = createPaymentRequirements();
+      const requirements = createPaymentRequirements(requestedPrice);
 
       try {
         const settleResult = await agent.verifyAndSettlePayment(

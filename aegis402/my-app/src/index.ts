@@ -38,6 +38,9 @@ const SLASH_BOND_AMOUNT = BigInt(process.env.SLASH_BOND_AMOUNT || "10000"); // 0
 const DEFAULT_DEADLINE_SECONDS = parseInt(
   process.env.DEFAULT_DEADLINE_SECONDS || "3600"
 );
+const DISPUTE_WINDOW_SECONDS = parseInt(
+  process.env.DISPUTE_WINDOW_SECONDS || "30"
+);
 const START_BLOCK = parseInt(process.env.START_BLOCK || "0");
 
 // Facilitator configuration
@@ -57,6 +60,7 @@ const config: Aegis402Config = {
   rpcUrl: RPC_URL,
   privateKey: PRIVATE_KEY,
   defaultDeadlineSeconds: DEFAULT_DEADLINE_SECONDS,
+  disputeWindowSeconds: DISPUTE_WINDOW_SECONDS,
   startBlock: START_BLOCK,
 };
 
