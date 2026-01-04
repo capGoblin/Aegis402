@@ -1,0 +1,30 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build outputs
+/bin/
+/out/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+
+# Environment
+.env
+
+# Language-specific build outputs
+node_modules/
+dist/
+build/
+target/
+__pycache__/
+*.pyc

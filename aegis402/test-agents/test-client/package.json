@@ -4,11 +4,12 @@
     "description": "Test client for Aegis402 flow testing",
     "main": "client.ts",
     "scripts": {
-        "dev": "ts-node -r dotenv/config client.ts",
-        "start": "ts-node -r dotenv/config client.ts"
+        "start": "adk run .",
+        "web": "adk web ."
     },
     "dependencies": {
         "a2a-x402": "file:../../a2a-x402-typescript/x402_a2a",
+        "adk-typescript": "1.0.3",
         "dotenv": "^17.2.3",
         "ethers": "^6.13.0"
     },

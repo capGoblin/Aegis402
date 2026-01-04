@@ -4,8 +4,9 @@
     "description": "Test merchant for Aegis402 flow testing",
     "main": "merchant.ts",
     "scripts": {
-        "dev": "ts-node -r dotenv/config merchant.ts",
-        "start": "ts-node -r dotenv/config merchant.ts"
+        "dev": "ts-node -r dotenv/config src/index.ts",
+        "start": "ts-node -r dotenv/config src/index.ts",
+        "web": "npm start"
     },
     "dependencies": {
         "a2a-x402": "file:../../a2a-x402-typescript/x402_a2a",
