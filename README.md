@@ -30,9 +30,6 @@ https://sepolia.basescan.org/address/0x9596670c5ce338c930d87949d4b2d1f86a68c83e
 https://sepolia.basescan.org/tx/0x9087cb2cfc569c895fe6a59cdfa9afc612bd0604becfad521a011d957249896e  
 https://sepolia.basescan.org/tx/0x080d77f1c55b61328cf1587de0a5877947cc9e1239771b1dfa65da7b1eaed75f  
 
-**More Context of Project**  
-https://hail-trampoline-5ad.notion.site/Project-Capital-Backed-Credit-Layer-for-x402-Agent-Payments-2d93b5757ab28086bc1ec9aa6ff061b6  
-
 ---
 
 ## What is Aegis402?
