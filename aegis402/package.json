@@ -1,21 +1,28 @@
 {
-    "name": "aegis402",
-    "version": "1.0.0",
-    "description": "Credit Clearinghouse Agent for x402 Agent Payments",
-    "main": "server.ts",
-    "scripts": {
-        "dev": "ts-node -r dotenv/config server.ts",
-        "start": "ts-node -r dotenv/config server.ts",
-        "build": "tsc --project tsconfig.json"
-    },
-    "dependencies": {
-        "a2a-x402": "file:../a2a-x402-typescript/x402_a2a",
-        "dotenv": "^17.2.3",
-        "ethers": "^6.13.0"
-    },
-    "devDependencies": {
-        "@types/node": "^24.6.2",
-        "ts-node": "^10.9.0",
-        "typescript": "^5.9.3"
-    }
+  "name": "my-app",
+  "version": "1.0.0",
+  "description": "EigenX TEE TypeScript Application",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "a2a-x402": "^0.0.8",
+    "dotenv": "^16.6.1",
+    "ethers": "^6.16.0",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "eigenx"
+  ]
 }

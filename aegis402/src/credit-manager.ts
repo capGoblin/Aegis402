@@ -178,15 +178,16 @@ export class CreditManagerClient {
     return this.contract.filters.Subscribed();
   }
 
-  // Query past Subscribed events (limited range for public RPCs)
+  // Query past Subscribed events (using chunking for robustness)
   async querySubscribedEvents(filter: any, fromBlock?: number): Promise<any[]> {
-    // Public RPCs limit to 100k blocks, use 90k to be safe
     const provider = this.contract.runner?.provider;
-    if (!fromBlock && provider) {
-      const currentBlock = await provider.getBlockNumber();
-      fromBlock = Math.max(0, currentBlock - 90000);
-    }
-    return await this.contract.queryFilter(filter, fromBlock);
+    if (!provider) return [];
+
+    const currentBlock = await provider.getBlockNumber();
+    const startBlock =
+      fromBlock !== undefined ? fromBlock : Math.max(0, currentBlock - 90000);
+
+    return await this.queryFilterChunked(filter, startBlock, currentBlock);
   }
 
   // Get filter for ExposureIncreased events (pending payments)
@@ -199,13 +200,65 @@ export class CreditManagerClient {
     return this.contract.filters.ExposureCleared();
   }
 
-  // Query past events with block range limit
+  // Query past events with robust chunking
   async queryEvents(filter: any, fromBlock?: number): Promise<any[]> {
     const provider = this.contract.runner?.provider;
-    if (!fromBlock && provider) {
-      const currentBlock = await provider.getBlockNumber();
-      fromBlock = Math.max(0, currentBlock - 90000);
+    if (!provider) return [];
+
+    const currentBlock = await provider.getBlockNumber();
+    const startBlock =
+      fromBlock !== undefined ? fromBlock : Math.max(0, currentBlock - 90000);
+
+    return await this.queryFilterChunked(filter, startBlock, currentBlock);
+  }
+
+  // Internal helper: Fetch logs in chunks to respect RPC limits
+  private async queryFilterChunked(
+    filter: any,
+    fromBlock: number,
+    toBlock: number,
+    chunkSize: number = 2000 // Safe default for most RPCs (some allow up to 10k)
+  ): Promise<any[]> {
+    const allEvents: any[] = [];
+    console.log(
+      `   🔄 Querying logs from ${fromBlock} to ${toBlock} (Total: ${
+        toBlock - fromBlock
+      } blocks)`
+    );
+
+    for (let i = fromBlock; i <= toBlock; i += chunkSize) {
+      const end = Math.min(i + chunkSize - 1, toBlock);
+      try {
+        // console.log(`      Requesting chunk: ${i} -> ${end}`);
+        const events = await this.contract.queryFilter(filter, i, end);
+        allEvents.push(...events);
+      } catch (error) {
+        console.error(
+          `      ⚠️ Error fetching chunk ${i}-${end}, retrying with smaller chunk...`
+        );
+        // Simple retry strategy: Try one more time with half chunk size if it fails?
+        // For now just logging error and continuing to avoid crash, but skipping data is bad.
+        // Let's implement a quick retry with smaller step for this range.
+        try {
+          const smallerParams = Math.floor(chunkSize / 2) || 100;
+          for (let j = i; j <= end; j += smallerParams) {
+            const subEnd = Math.min(j + smallerParams - 1, end);
+            const subEvents = await this.contract.queryFilter(
+              filter,
+              j,
+              subEnd
+            );
+            allEvents.push(...subEvents);
+          }
+        } catch (retryError) {
+          console.error(
+            `      ❌ Failed to recover chunk ${i}-${end} even after retry:`,
+            retryError
+          );
+        }
+      }
     }
-    return await this.contract.queryFilter(filter, fromBlock);
+
+    return allEvents;
   }
 }

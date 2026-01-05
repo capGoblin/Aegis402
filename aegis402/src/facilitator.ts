@@ -46,17 +46,19 @@ export class ProductionFacilitatorClient implements FacilitatorClient {
         paymentRequirements: requirements,
       };
 
-      console.log("Request body:", JSON.stringify(requestBody, null, 2));
+      const bodyStr = JSON.stringify(requestBody);
+      console.log("Request body:", bodyStr);
 
       const response = await fetch(`${this.config.url}/verify`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(bodyStr).toString(),
           ...(this.config.apiKey && {
             Authorization: `Bearer ${this.config.apiKey}`,
           }),
         },
-        body: JSON.stringify(requestBody),
+        body: bodyStr,
       });
 
       if (!response.ok) {
@@ -100,17 +102,19 @@ export class ProductionFacilitatorClient implements FacilitatorClient {
         paymentRequirements: requirements,
       };
 
-      console.log("Request body:", JSON.stringify(requestBody, null, 2));
+      const bodyStr = JSON.stringify(requestBody);
+      console.log("Request body:", bodyStr);
 
       const response = await fetch(`${this.config.url}/settle`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(bodyStr).toString(),
           ...(this.config.apiKey && {
             Authorization: `Bearer ${this.config.apiKey}`,
           }),
         },
-        body: JSON.stringify(requestBody),
+        body: bodyStr,
       });
 
       if (!response.ok) {
