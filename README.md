@@ -11,8 +11,6 @@ into:
 
 > **“pay and get guaranteed delivery by collateral and credit.”**
 
-Built for the **x402 Hackathon**
-
 ---
 
 ## Links
