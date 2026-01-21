@@ -17,9 +17,6 @@ Built for the **x402 Hackathon**
 
 ## Links
 
-**Thread (X)**  
-https://x.com/dharshan_tw/status/2008265094648787090  
-
 **Demo Video (YouTube)**  
 https://youtu.be/pF3e4f9k9KM  
 
@@ -95,9 +92,6 @@ Aegis402 is composed of:
 
 - **x402**  
   Handles payments from clients to service agents.
-
-- **EigenCompute clearing agent**  
-  Watches x402 payment flows, enforces deadlines, and triggers slashes when agents fail.
 
 ---
 
