@@ -93,7 +93,7 @@ This credit limit is:
 
 ---
 
-## How it works (simple)
+## How it works 
 
 1. A service agent stakes capital into Aegis402.
 2. Aegis402 computes how much value they can safely take on.
@@ -148,13 +148,6 @@ Aegis402 removes that ceiling.
 - **x402** – payment rail between agents  
 - **ERC-8004** – identity and reputation  
 - **CreditManager (on-chain)** – holds collateral and enforces limits  
-- **Aegis402 Clearing Agent (EigenCompute)** – watches payments, enforces deadlines, triggers refunds  
-
-EigenCompute runs the clearing logic so it is:
-- verifiable
-- fault-tolerant
-- not dependent on a single server
-
 ---
 
 ## What x402 becomes with Aegis402
