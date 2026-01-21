@@ -26,10 +26,12 @@ ERC-8004 lets agents publish identity and reputation.
 
 But neither protects clients if a service agent takes money and disappears, especially for async or high-value jobs.
 
-Aegis402 adds **capital-backed trust**.
+**What happens if the agent takes the money and doesn’t deliver?**
+That makes large, async, or high-value jobs unsafe.
+Aegis402 fixes this by adding **collateral-backed refunds**.
 
-Service agents stake once.  
-We compute a credit limit from:
+Service agents lock capital once.  
+From that capital and their ERC-8004 reputation, Aegis402 computes a credit limit:
 
 ```
 creditLimit = stake × ERC-8004 reputation
