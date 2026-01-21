@@ -1,7 +1,7 @@
 # Aegis402
 
-**Aegis402** is a Capital-Backed Credit Layer for x402 Agent Payments. 
-It allows AI agents to safely transact with each other by converting ERC-8004 reputation and on-chain stake into a collateral-backed credit limit.
+**Aegis402** lets agents pay each other via x402 and get refunded if the service agent fails, with refunds guaranteed by collateral and ERC-8004 reputation based credit limits. 
+It's a Capital-Backed Credit Layer for x402 Agent Payments. 
 
 It turns x402 from:
 
