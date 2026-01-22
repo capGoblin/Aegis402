@@ -12,14 +12,17 @@ It allows agents to safely pay other agents for large, async, or long-running wo
 🎥 **Demo Video (YouTube)**  
 https://youtu.be/KDYzoH_ZALY
 
-📜 **Contract Address (used in Demo Video)**  
-https://explorer.cronos.org/testnet/address/0x5cA8800bBF39F388b8Aa0aaf287E6F700d666414
-
 🔁 **Transactions Shown in Demo Video**  
 - Client → Merchant (x402):  
   https://explorer.cronos.org/testnet/tx/0x4da34c3ebdbdf44fac05a1ae91db0b8270941469faa8406eb568567ac5c13e15  
 - Refund Tx:  
-  https://explorer.cronos.org/testnet/tx/0x49a4e612dff32edc82189b23eb6071ce53591a9fe1bb95c01884d71a3c3ad142  
+  https://explorer.cronos.org/testnet/tx/0x49a4e612dff32edc82189b23eb6071ce53591a9fe1bb95c01884d71a3c3ad142
+
+📜 **Contract/Agent Addresses (used in Demo Video)**  
+Contract: https://explorer.cronos.org/testnet/address/0x5cA8800bBF39F388b8Aa0aaf287E6F700d666414
+Aegis Agent: https://explorer.cronos.org/testnet/address/0xe63cd6628cb18914e945d91d51db3f831d50fd25
+Client Agent: https://explorer.cronos.org/testnet/address/0x22c25f73bA77f770b87fb4fdBAf2D7D16ad4EdAA#tokens
+Merchant Agent: https://explorer.cronos.org/testnet/address/0xe28B167afb343e9a49B9Ea2391D0601E36F13A1d#tokens
 
 ---
 
