@@ -55,12 +55,12 @@ export class ERC8004ReputationReader {
     this.reputationRegistry = new Contract(
       ERC8004_ADDRESSES.reputationRegistry,
       REPUTATION_REGISTRY_ABI,
-      provider
+      provider,
     );
     this.identityRegistry = new Contract(
       ERC8004_ADDRESSES.identityRegistry,
       IDENTITY_REGISTRY_ABI,
-      provider
+      provider,
     );
   }
 
@@ -82,22 +82,22 @@ export class ERC8004ReputationReader {
    */
   async getFeedbackEntries(
     agentId: bigint,
-    fromBlock?: number
+    fromBlock?: number,
   ): Promise<FeedbackEntry[]> {
     try {
       // Get current block to calculate range (RPC limits to 100k blocks)
       const currentBlock = await this.provider.getBlockNumber();
-      const startBlock = fromBlock ?? Math.max(0, currentBlock - 90000); // Last 90k blocks
+      const startBlock = fromBlock ?? Math.max(0, currentBlock - 2000); // RPC limits (e.g. 2000 blocks)
 
       console.log(
-        `   Querying feedback events from block ${startBlock} to ${currentBlock}`
+        `   Querying feedback events from block ${startBlock} to ${currentBlock}`,
       );
 
       const filter = this.reputationRegistry.filters.NewFeedback(agentId);
       const events = await this.reputationRegistry.queryFilter(
         filter,
         startBlock,
-        currentBlock
+        currentBlock,
       );
 
       const entries: FeedbackEntry[] = events.map((event: any) => ({
@@ -112,11 +112,14 @@ export class ERC8004ReputationReader {
       }));
 
       console.log(
-        `📊 Found ${entries.length} feedback entries for agentId ${agentId}`
+        `📊 Found ${entries.length} feedback entries for agentId ${agentId}`,
       );
       return entries;
     } catch (error) {
-      console.error(`❌ Failed to fetch feedback:`, error);
+      // Suppress noisy RPC errors about block range or connection
+      console.log(
+        `   ⚠️ Could not fetch historic feedback (RPC limit or network). Using defaults.`,
+      );
       return [];
     }
   }
@@ -186,7 +189,7 @@ export class ERC8004ReputationReader {
   async getRepFactorByAgentId(agentId: string | number): Promise<number> {
     const agentIdBigInt = BigInt(agentId);
     console.log(
-      `\n📜 Reading ERC-8004 reputation for agentId ${agentIdBigInt}`
+      `\n📜 Reading ERC-8004 reputation for agentId ${agentIdBigInt}`,
     );
 
     if (agentIdBigInt === 0n) {
@@ -217,7 +220,7 @@ let reputationReader: ERC8004ReputationReader | null = null;
  * Get or create the global reputation reader
  */
 export function getReputationReader(
-  provider: Provider
+  provider: Provider,
 ): ERC8004ReputationReader {
   if (!reputationReader) {
     reputationReader = new ERC8004ReputationReader(provider);
@@ -232,7 +235,7 @@ export function getReputationReader(
  */
 export async function readERC8004(
   address: string,
-  provider: Provider
+  provider: Provider,
 ): Promise<ReputationInputs | null> {
   const reader = getReputationReader(provider);
 

@@ -8,7 +8,7 @@ const PORT = parseInt(process.env.PORT || "10002");
 const SERVICE_PRICE = process.env.SERVICE_PRICE || "1000";
 const AEGIS402_URL = process.env.AEGIS402_URL || "http://localhost:10001";
 const FACILITATOR_URL =
-  process.env.FACILITATOR_URL || "https://x402.org/facilitator";
+  process.env.FACILITATOR_URL || "https://facilitator.cronoslabs.org/v2/x402";
 const WALLET_PRIVATE_KEY = process.env.MERCHANT_PRIVATE_KEY || "";
 const MERCHANT_WALLET_ADDRESS = process.env.MERCHANT_WALLET_ADDRESS || "";
 const SKILLS = (
@@ -17,7 +17,7 @@ const SKILLS = (
 const AGENT_ID = process.env.AGENT_ID || "0";
 const STAKE_AMOUNT = process.env.STAKE_AMOUNT || "10000";
 const USDC_ADDRESS =
-  process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+  process.env.USDC_ADDRESS || "0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0";
 
 if (!WALLET_PRIVATE_KEY) {
   console.error("❌ MERCHANT_PRIVATE_KEY required in .env");
@@ -63,7 +63,7 @@ function createPaymentRequirements(price?: string) {
   const amount = price || SERVICE_PRICE;
   return {
     scheme: "exact" as const,
-    network: "base-sepolia" as const,
+    network: "cronos-testnet" as const,
     asset: USDC_ADDRESS,
     payTo: agent.getWalletAddress(),
     maxAmountRequired: amount,
@@ -72,8 +72,8 @@ function createPaymentRequirements(price?: string) {
     mimeType: "application/json",
     maxTimeoutSeconds: 300,
     extra: {
-      name: "USDC",
-      version: "2",
+      name: "Bridged USDC (Stargate)",
+      version: "1",
     },
   };
 }
@@ -145,7 +145,7 @@ const server = createServer(async (req, res) => {
             error: "Payment Required",
             accepts: [requirements],
             x402Version: 1,
-          })
+          }),
         );
         return;
       }
@@ -157,7 +157,7 @@ const server = createServer(async (req, res) => {
       try {
         const settleResult = await agent.verifyAndSettlePayment(
           paymentPayload,
-          requirements
+          requirements,
         );
 
         // Provide service

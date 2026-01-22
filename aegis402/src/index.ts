@@ -31,21 +31,21 @@ const CREDIT_MANAGER_ADDRESS =
   process.env.CREDIT_MANAGER_ADDRESS ||
   "0x9fA96fE9374F351538A051194b54D93350A48FBE";
 const USDC_ADDRESS =
-  process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
-const RPC_URL = process.env.RPC_URL || "https://sepolia.base.org";
+  process.env.USDC_ADDRESS || "0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0";
+const RPC_URL = process.env.RPC_URL || "https://evm-t3.cronos.org";
 const MIN_STAKE_AMOUNT = BigInt(process.env.MIN_STAKE_AMOUNT || "10000"); // 0.01 USDC
 const SLASH_BOND_AMOUNT = BigInt(process.env.SLASH_BOND_AMOUNT || "10000"); // 0.01 USDC
 const DEFAULT_DEADLINE_SECONDS = parseInt(
-  process.env.DEFAULT_DEADLINE_SECONDS || "3600"
+  process.env.DEFAULT_DEADLINE_SECONDS || "3600",
 );
 const DISPUTE_WINDOW_SECONDS = parseInt(
-  process.env.DISPUTE_WINDOW_SECONDS || "30"
+  process.env.DISPUTE_WINDOW_SECONDS || "30",
 );
 const START_BLOCK = parseInt(process.env.START_BLOCK || "0");
 
 // Facilitator configuration
 const FACILITATOR_URL =
-  process.env.FACILITATOR_URL || "https://x402.org/facilitator";
+  process.env.FACILITATOR_URL || "https://facilitator.cronoslabs.org/v2/x402";
 const FACILITATOR_API_KEY = process.env.FACILITATOR_API_KEY;
 
 if (!PRIVATE_KEY) {
@@ -78,7 +78,7 @@ console.log(`📡 Using facilitator: ${FACILITATOR_URL}`);
 function createStakeRequirements(amount: bigint): PaymentRequirements {
   return {
     scheme: "exact",
-    network: "base-sepolia",
+    network: "cronos-testnet",
     asset: USDC_ADDRESS,
     payTo: aegis.getAgentAddress(), // Stake goes to agent first
     maxAmountRequired: amount.toString(),
@@ -87,8 +87,8 @@ function createStakeRequirements(amount: bigint): PaymentRequirements {
     mimeType: "application/json",
     maxTimeoutSeconds: 1200,
     extra: {
-      name: "USDC",
-      version: "2",
+      name: "Bridged USDC (Stargate)",
+      version: "1",
       purpose: "stake",
     },
   };
@@ -97,7 +97,7 @@ function createStakeRequirements(amount: bigint): PaymentRequirements {
 function createSlashBondRequirements(): PaymentRequirements {
   return {
     scheme: "exact",
-    network: "base-sepolia",
+    network: "cronos-testnet",
     asset: USDC_ADDRESS,
     payTo: aegis.getAgentAddress(), // Bond goes to agent
     maxAmountRequired: SLASH_BOND_AMOUNT.toString(),
@@ -106,8 +106,8 @@ function createSlashBondRequirements(): PaymentRequirements {
     mimeType: "application/json",
     maxTimeoutSeconds: 1200,
     extra: {
-      name: "USDC",
-      version: "2",
+      name: "Bridged USDC (Stargate)",
+      version: "1",
       purpose: "slash_bond",
     },
   };
@@ -140,7 +140,7 @@ function sendJson(res: ServerResponse, status: number, data: any): void {
   console.log(
     `📤 [Server] Sending Response ${status}:`,
     JSON.stringify(data).slice(0, 500) +
-      (JSON.stringify(data).length > 500 ? "..." : "")
+      (JSON.stringify(data).length > 500 ? "..." : ""),
   );
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
@@ -150,7 +150,7 @@ function sendJson(res: ServerResponse, status: number, data: any): void {
 function sendPaymentRequired(
   res: ServerResponse,
   requirements: PaymentRequirements,
-  message: string
+  message: string,
 ): void {
   console.log(`💰 [Server] Sending 402 Payment Required: ${message}`);
   res.writeHead(402, {
@@ -162,7 +162,7 @@ function sendPaymentRequired(
       x402Version: 1,
       accepts: [requirements],
       error: message,
-    })
+    }),
   );
 }
 
@@ -199,7 +199,7 @@ function extractPayment(body: any): PaymentSubmission | null {
 // Request handler
 async function handleRequest(
   req: IncomingMessage,
-  res: ServerResponse
+  res: ServerResponse,
 ): Promise<void> {
   // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -264,38 +264,38 @@ async function handleRequest(
         console.log(
           `   💡 Subscription request without payment. Quoting stake: ${ethers.formatUnits(
             stakeAmount,
-            6
-          )} USDC`
+            6,
+          )} USDC`,
         );
         const requirements = createStakeRequirements(stakeAmount);
         sendPaymentRequired(
           res,
           requirements,
-          `Stake of ${ethers.formatUnits(stakeAmount, 6)} USDC required`
+          `Stake of ${ethers.formatUnits(stakeAmount, 6)} USDC required`,
         );
         return;
       }
 
       // Verify and settle the payment
       console.log(
-        "📥 [Server] Received stake payment, verifying with facilitator..."
+        "📥 [Server] Received stake payment, verifying with facilitator...",
       );
       console.log(
         "   Payload:",
-        JSON.stringify(payment.payload).slice(0, 200) + "..."
+        JSON.stringify(payment.payload).slice(0, 200) + "...",
       );
 
       const verifyResult = await verifyPayment(
         payment.payload,
         payment.requirements,
-        facilitator
+        facilitator,
       );
 
       console.log("   🔍 Verification result:", verifyResult);
 
       if (!verifyResult.isValid) {
         console.error(
-          `   ❌ Verification failed: ${verifyResult.invalidReason}`
+          `   ❌ Verification failed: ${verifyResult.invalidReason}`,
         );
         sendJson(res, 400, {
           success: false,
@@ -305,12 +305,12 @@ async function handleRequest(
       }
 
       console.log(
-        "✅ [Server] Stake payment verified, attempting settlement..."
+        "✅ [Server] Stake payment verified, attempting settlement...",
       );
       const settleResult = await settlePayment(
         payment.payload,
         payment.requirements,
-        facilitator
+        facilitator,
       );
 
       console.log("   💸 Settlement result:", settleResult);
@@ -338,7 +338,7 @@ async function handleRequest(
       const result = await aegis.handleSubscribe(
         subscribeReq,
         merchantAddress,
-        stakeAmount
+        stakeAmount,
       );
 
       console.log("   ✅ Subscription result:", result);
@@ -361,7 +361,7 @@ async function handleRequest(
 
       const result = await aegis.handleQuote(body);
       console.log(
-        `   ✅ Quote result: found ${result.merchants.length} merchants`
+        `   ✅ Quote result: found ${result.merchants.length} merchants`,
       );
       sendJson(res, 200, result);
       return;
@@ -405,8 +405,8 @@ async function handleRequest(
           requirements,
           `Slash bond of ${ethers.formatUnits(
             SLASH_BOND_AMOUNT,
-            6
-          )} USDC required`
+            6,
+          )} USDC required`,
         );
         return;
       }
@@ -416,14 +416,14 @@ async function handleRequest(
       const verifyResult = await verifyPayment(
         payment.payload,
         payment.requirements,
-        facilitator
+        facilitator,
       );
 
       console.log("   🔍 Verification result:", verifyResult);
 
       if (!verifyResult.isValid) {
         console.error(
-          `   ❌ Bond verification failed: ${verifyResult.invalidReason}`
+          `   ❌ Bond verification failed: ${verifyResult.invalidReason}`,
         );
         sendJson(res, 400, {
           success: false,
@@ -437,14 +437,14 @@ async function handleRequest(
       const settleResult = await settlePayment(
         payment.payload,
         payment.requirements,
-        facilitator
+        facilitator,
       );
 
       console.log("   💸 Bond settlement result:", settleResult);
 
       if (!settleResult.success) {
         console.error(
-          `   ❌ Bond settlement failed: ${settleResult.errorReason}`
+          `   ❌ Bond settlement failed: ${settleResult.errorReason}`,
         );
         sendJson(res, 400, {
           success: false,
@@ -458,7 +458,7 @@ async function handleRequest(
       const clientAddress = verifyResult.payer!;
 
       console.log(
-        `🔥 [Server] Bond paid by ${clientAddress}, executing slash...`
+        `🔥 [Server] Bond paid by ${clientAddress}, executing slash...`,
       );
       const result = await aegis.handleSlash(slashReq, clientAddress);
 
@@ -487,7 +487,7 @@ const server = createServer(handleRequest);
 aegis.start().then(() => {
   server.listen(PORT, () => {
     console.log(
-      `\n🛡️  Aegis402 TEE Server running on http://localhost:${PORT}`
+      `\n🛡️  Aegis402 Agent is running on http://localhost:${PORT}`,
     );
     console.log(`\nEndpoints:`);
     console.log(`  POST /subscribe  - Merchant onboarding (x402 stake)`);

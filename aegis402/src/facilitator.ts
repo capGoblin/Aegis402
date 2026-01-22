@@ -34,15 +34,19 @@ export class ProductionFacilitatorClient implements FacilitatorClient {
 
   async verify(
     payload: PaymentPayload,
-    requirements: PaymentRequirements
+    requirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
     console.log("--- PRODUCTION FACILITATOR: VERIFY ---");
     console.log(`Calling facilitator at: ${this.config.url}/verify`);
 
     try {
+      const paymentHeader = Buffer.from(JSON.stringify(payload)).toString(
+        "base64",
+      );
+
       const requestBody = {
         x402Version: payload.x402Version,
-        paymentPayload: payload,
+        paymentHeader: paymentHeader,
         paymentRequirements: requirements,
       };
 
@@ -54,6 +58,7 @@ export class ProductionFacilitatorClient implements FacilitatorClient {
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(bodyStr).toString(),
+          "X402-Version": "1",
           ...(this.config.apiKey && {
             Authorization: `Bearer ${this.config.apiKey}`,
           }),
@@ -62,19 +67,26 @@ export class ProductionFacilitatorClient implements FacilitatorClient {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
         console.error(`❌ Facilitator verify failed: ${response.status}`);
+        console.error(`   Body: ${errorText}`);
         return {
           isValid: false,
-          invalidReason: `HTTP ${response.status}: ${response.statusText}`,
+          invalidReason: `HTTP ${response.status}: ${response.statusText} - ${errorText}`,
         };
       }
 
       const result = (await response.json()) as any;
       console.log(`✅ Verification result:`, result);
 
+      const payer =
+        result.payer ||
+        (payload.payload as any).from ||
+        (payload.payload as any).authorization?.from;
+
       return {
         isValid: result.is_valid || result.isValid || false,
-        payer: result.payer,
+        payer: payer,
         invalidReason: result.invalid_reason || result.invalidReason,
       };
     } catch (error) {
@@ -90,15 +102,19 @@ export class ProductionFacilitatorClient implements FacilitatorClient {
 
   async settle(
     payload: PaymentPayload,
-    requirements: PaymentRequirements
+    requirements: PaymentRequirements,
   ): Promise<SettleResponse> {
     console.log("--- PRODUCTION FACILITATOR: SETTLE ---");
     console.log(`Calling facilitator at: ${this.config.url}/settle`);
 
     try {
+      const paymentHeader = Buffer.from(JSON.stringify(payload)).toString(
+        "base64",
+      );
+
       const requestBody = {
         x402Version: payload.x402Version,
-        paymentPayload: payload,
+        paymentHeader: paymentHeader,
         paymentRequirements: requirements,
       };
 
@@ -110,6 +126,7 @@ export class ProductionFacilitatorClient implements FacilitatorClient {
         headers: {
           "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(bodyStr).toString(),
+          "X402-Version": "1",
           ...(this.config.apiKey && {
             Authorization: `Bearer ${this.config.apiKey}`,
           }),
@@ -118,23 +135,30 @@ export class ProductionFacilitatorClient implements FacilitatorClient {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
         console.error(`❌ Facilitator settle failed: ${response.status}`);
+        console.error(`   Body: ${errorText}`);
         return {
           success: false,
           network: requirements.network,
-          errorReason: `HTTP ${response.status}: ${response.statusText}`,
+          errorReason: `HTTP ${response.status}: ${response.statusText} - ${errorText}`,
         };
       }
 
       const result = (await response.json()) as any;
       console.log(`✅ Settlement result:`, result);
 
+      const isSuccess = result.event === "payment.settled";
+
       return {
-        success: result.success || false,
-        transaction: result.transaction || result.transactionHash,
+        success: isSuccess,
+        transaction:
+          result.txHash || result.transaction || result.transactionHash,
         network: result.network || requirements.network,
-        payer: result.payer,
-        errorReason: result.error_reason || result.errorReason,
+        payer: result.from || result.payer,
+        errorReason: isSuccess
+          ? undefined
+          : result.error || result.errorReason || "Unknown error",
       };
     } catch (error) {
       console.error("❌ Facilitator settle error:", error);
